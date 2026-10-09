@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Konkreta – Particles Background</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { background: #ffffff; overflow: hidden; }
+  #particles { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<canvas id="particles" aria-hidden="true"></canvas>
+
+<script>
+/* ===== CONFIGURAÇÃO — cores do kit Elementor da Konkreta ===== */
+const CONFIG = {
+  background: "#ffffff",   // troque por "#262985" para fundo azul escuro
+  particleColor: "#2C2D82", // azul principal da logo
+  accentColor: "#06E16A",   // verde de destaque
+  accentShare: 0.05,        // fração de partículas verdes (0 a 1)
+  lineColor: "#2C2D82",     // cor das linhas de conexão
+  lineOpacity: 0.55,        // intensidade máxima das linhas (0 a 1)
+  density: 0.00028,         // partículas por pixel² da tela
+  maxParticles: 450,
+  linkDistance: 190,        // distância máxima para ligar duas partículas
+  speed: 0.3,
+  size: [0.8, 2.0],         // raio mínimo e máximo
+  mouseRadius: 150,         // área de influência do mouse
+  mouseForce: 0.6           // >0 afasta, <0 atrai
+};
+
+const canvas = document.getElementById("particles");
+const ctx = canvas.getContext("2d");
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+let w = 0, h = 0, dpr = 1, particles = [], raf = null;
+const mouse = { x: -9999, y: -9999 };
+
+function rand(a, b) { return a + Math.random() * (b - a); }
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+const lineRgb = hexToRgb(CONFIG.lineColor);
+
+function makeParticle() {
+  const angle = rand(0, Math.PI * 2);
+  const v = rand(0.4, 1) * CONFIG.speed;
+  return {
+    x: rand(0, w), y: rand(0, h),
+    vx: Math.cos(angle) * v, vy: Math.sin(angle) * v,
+    r: rand(CONFIG.size[0], CONFIG.size[1]),
+    color: Math.random() < CONFIG.accentShare ? CONFIG.accentColor : CONFIG.particleColor
+  };
+}
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  w = canvas.clientWidth;
+  h = canvas.clientHeight;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const count = Math.min(CONFIG.maxParticles, Math.round(w * h * CONFIG.density));
+  particles = Array.from({ length: count }, makeParticle);
+  if (reduceMotion) draw();
+}
+
+function step() {
+  for (const p of particles) {
+    const dx = p.x - mouse.x, dy = p.y - mouse.y;
+    const d = Math.hypot(dx, dy);
+    if (d < CONFIG.mouseRadius && d > 0) {
+      const f = (1 - d / CONFIG.mouseRadius) * CONFIG.mouseForce;
+      p.x += (dx / d) * f * 2;
+      p.y += (dy / d) * f * 2;
+    }
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < -10) p.x = w + 10; else if (p.x > w + 10) p.x = -10;
+    if (p.y < -10) p.y = h + 10; else if (p.y > h + 10) p.y = -10;
+  }
+}
+
+function draw() {
+  ctx.fillStyle = CONFIG.background;
+  ctx.fillRect(0, 0, w, h);
+
+  const L = CONFIG.linkDistance;
+  for (let i = 0; i < particles.length; i++) {
+    const a = particles[i];
+    for (let j = i + 1; j < particles.length; j++) {
+      const b = particles[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      if (Math.abs(dx) > L || Math.abs(dy) > L) continue;
+      const d = Math.hypot(dx, dy);
+      if (d < L) {
+        const alpha = (1 - d / L) * CONFIG.lineOpacity;
+        ctx.strokeStyle = `rgba(${lineRgb[0]},${lineRgb[1]},${lineRgb[2]},${alpha})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+  }
+  for (const p of particles) {
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function loop() {
+  step();
+  draw();
+  raf = requestAnimationFrame(loop);
+}
+
+window.addEventListener("resize", resize);
+window.addEventListener("pointermove", e => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - r.left;
+  mouse.y = e.clientY - r.top;
+});
+window.addEventListener("pointerleave", () => { mouse.x = mouse.y = -9999; });
+document.addEventListener("visibilitychange", () => {
+  if (reduceMotion) return;
+  if (document.hidden) { cancelAnimationFrame(raf); raf = null; }
+  else if (!raf) loop();
+});
+
+resize();
+if (!reduceMotion) loop();
+</script>
+</body>
+</html>
